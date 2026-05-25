@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shared Expense Tracker</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+  <div class="container">
+    <h1>💸 Our Shared Expenses</h1>
+    
+    <div class="balance-card">
+      <h3>Total Pool Spent</h3>
+      <p id="total-amount">₹0.00</p>
+    </div>
+
+    <form id="expense-form">
+      <div class="input-group">
+        <label for="payer">Who Paid?</label>
+        <select id="payer" required>
+          <option value="">Select Name</option>
+          <option value="Me">Me</option>
+          <option value="Friend">Friend</option>
+        </select>
+      </div>
+
+      <div class="input-group">
+        <label for="description">For What?</label>
+        <input type="text" id="description" placeholder="Groceries, Rent, Coffee..." required>
+      </div>
+
+      <div class="input-group">
+        <label for="amount">Amount (₹)</label>
+        <input type="number" id="amount" placeholder="0.00" step="0.01" required>
+      </div>
+
+      <button type="submit" id="submit-btn">Log Expense</button>
+    </form>
+
+    <h2>History</h2>
+    <ul id="expense-list">
+      <li>Loading data from cloud...</li>
+    </ul>
+  </div>
+
+  <script>
+    // --- CONNECT TO YOUR CLOUD DATABASE ---
+    // ⚠️ REPLACE THESE TWO STRINGS WITH YOUR COPIED SUPABASE DETAILS EXACTLY
+    const SUPABASE_URL = "https://nrvmpeyiuhtrjnhagcpi.supabase.co/rest/v1/";
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ydm1wZXlpdWh0cmpuaGFnY3BpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk3MTk4MjksImV4cCI6MjA5NTI5NTgyOX0.YHujAFiczNIgHPn9oG_2lckdK4on9y1JIotCES0_5n8";
+    
+    // Establishing a SINGLE clean connection
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    const form = document.getElementById('expense-form');
+    const expenseList = document.getElementById('expense-list');
+    const totalAmountDisplay = document.getElementById('total-amount');
+    const submitBtn = document.getElementById('submit-btn');
+
+    // Fetch expenses from the cloud
+    async function fetchExpenses() {
+      if (SUPABASE_URL === "YOUR_SUPABASE_PROJECT_URL") {
+        expenseList.innerHTML = "<li>⚠️ Setup incomplete: Please replace placeholders with your actual Supabase URL and Key!</li>";
+        return;
+      }
+
+      let { data: expenses, error } = await supabase
+        .from('expenses')
+        .select('*');
+
+      if (error) {
+        console.error('Error fetching data:', error);
+        expenseList.innerHTML = `<li style="border-left-color: #e74c3c;">❌ Cloud Error: ${error.message}</li>`;
+        return;
+      }
+
+      if (!expenses || expenses.length === 0) {
+        expenseList.innerHTML = "<li>No expenses recorded yet! Add one above.</li>";
+        totalAmountDisplay.textContent = "₹0.00";
+        return;
+      }
+
+      // Show newest expenses at the top
+      expenses.reverse();
+      displayExpenses(expenses);
+    }
+
+    // Display expenses and calculate total
+    function displayExpenses(expenses) {
+      expenseList.innerHTML = '';
+      let total = 0;
+
+      expenses.forEach(exp => {
+        const amountNum = parseFloat(exp.amount) || 0;
+        total += amountNum;
+
+        const li = document.createElement('li');
+        li.innerHTML = `
+          <span><strong>${exp.payer || 'Someone'}</strong> spent on ${exp.description || 'Item'}</span>
+          <span class="price">₹${amountNum.toFixed(2)}</span>
+        `;
+        expenseList.appendChild(li);
+      });
+
+      totalAmountDisplay.textContent = `₹${total.toFixed(2)}`;
+    }
+
+    // Save a new expense to the cloud
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const payer = document.getElementById('payer').value;
+      const description = document.getElementById('description').value;
+      const amount = parseFloat(document.getElementById('amount').value);
+
+      // Loading layout state
+      submitBtn.textContent = "Logging...";
+      submitBtn.disabled = true;
+
+      const { data, error } = await supabase
+        .from('expenses')
+        .insert([{ payer, description, amount }]);
+
+      submitBtn.textContent = "Log Expense";
+      submitBtn.disabled = false;
+
+      if (error) {
+        alert('Could not save to cloud: ' + error.message);
+        console.error(error);
+      } else {
+        form.reset();
+        // Brief pause to allow database to settle before reloading
+        setTimeout(fetchExpenses, 400);
+      }
+    });
+
+    // Start everything on load
+    fetchExpenses();
+  </script>
+</body>
+</html>
